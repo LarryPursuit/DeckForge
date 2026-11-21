@@ -1,0 +1,15 @@
+Flask==3.1.*
+Flask-SQLAlchemy==3.1.*
+Flask-Migrate==4.*
+Flask-JWT-Extended==4.7.*
+Flask-Bcrypt==1.0.*
+Flask-Cors==6.*
+marshmallow==3.*
+requests==2.*
+python-dotenv==1.*
+gunicorn==23.*
+psycopg2-binary==2.9.*
+
+# tests
+pytest==8.*
+responses==0.25.*
