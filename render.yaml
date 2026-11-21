@@ -1,0 +1,30 @@
+# Render Blueprint: creates the Flask API and its Postgres database.
+# Render dashboard > New > Blueprint > pick this repo.
+services:
+  - type: web
+    name: deckforge-api
+    runtime: python
+    rootDir: server
+    plan: free
+    buildCommand: pip install -r requirements.txt && flask db upgrade
+    startCommand: gunicorn wsgi:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: FLASK_APP
+        value: wsgi.py
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: deckforge-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false # your Vercel URL, e.g. https://deckforge.vercel.app
+      - key: SCRYFALL_USER_AGENT
+        sync: false # e.g. Deckforge/1.0 (you@example.com)
+
+databases:
+  - name: deckforge-db
+    plan: free
