@@ -4,6 +4,7 @@ import { apiFetch } from "../api";
 import CardImage from "../components/CardImage";
 import Pagination from "../components/Pagination";
 import useDebounce from "../hooks/useDebounce";
+import { MAX_COLLECTION_COPIES } from "../constants";
 
 const money = (n) => `$${n.toFixed(2)}`;
 const PER_PAGE = 24;
@@ -34,19 +35,28 @@ export default function CollectionPage() {
   const [page, setPage] = useState(1);
   const q = useDebounce(search.trim(), 300);
 
-  const load = useCallback(() => {
-    const params = new URLSearchParams({ q, sort, page, per_page: PER_PAGE });
-    if (color) params.set("color", color);
-    return apiFetch(`/api/collection?${params}`)
-      .then((d) => {
-        setData(d);
-        setError("");
-      })
-      .catch((err) => setError(err.message));
-  }, [q, color, sort, page]);
+  const load = useCallback(
+    (signal) => {
+      const params = new URLSearchParams({ q, sort, page, per_page: PER_PAGE });
+      if (color) params.set("color", color);
+      return apiFetch(`/api/collection?${params}`, { signal })
+        .then((d) => {
+          setData(d);
+          setError("");
+        })
+        .catch((err) => {
+          if (err.name !== "AbortError") setError(err.message);
+        });
+    },
+    [q, color, sort, page]
+  );
 
+  // Changing a filter cancels the previous request, so a slow old
+  // response can't overwrite the newer one.
   useEffect(() => {
-    load();
+    const ctrl = new AbortController();
+    load(ctrl.signal);
+    return () => ctrl.abort();
   }, [load]);
 
   // Any new filter starts again from page 1.
@@ -180,7 +190,12 @@ export default function CollectionPage() {
                       −
                     </button>
                     <output aria-live="polite">{item.quantity}</output>
-                    <button type="button" onClick={() => setQuantity(item, item.quantity + 1)} aria-label="One more">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(item, item.quantity + 1)}
+                      disabled={item.quantity >= MAX_COLLECTION_COPIES}
+                      aria-label="One more"
+                    >
                       +
                     </button>
                   </div>

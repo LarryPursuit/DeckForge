@@ -28,11 +28,11 @@ Deck-building sites assume you own every card. Players find out too late that ke
 
 | Layer | Tools |
 | --- | --- |
-| Backend | Python 3.11+, Flask 3, Flask-SQLAlchemy, Flask-Migrate (Alembic), Flask-JWT-Extended, Flask-Bcrypt, Flask-CORS, Marshmallow |
+| Backend | Python 3.11+, Flask 3, Flask-SQLAlchemy, Flask-Migrate (Alembic), Flask-JWT-Extended, Flask-Bcrypt, Flask-CORS, Flask-Limiter, Marshmallow |
 | Database | SQLite in development, PostgreSQL in production |
 | External API | [Scryfall](https://scryfall.com/docs/api) for card data, images and prices (free, no key) |
 | Frontend | React 19, React Router 7, Vite 7, plain CSS with custom properties |
-| Quality | pytest (31 tests, Scryfall mocked with `responses`), ESLint with React Hooks rules |
+| Quality | pytest (37 tests, Scryfall mocked with `responses`), ESLint with React Hooks rules |
 | Deployment | Render (API and Postgres, via `render.yaml`), Vercel (frontend, via `client/vercel.json`) |
 
 ## Getting started
@@ -42,25 +42,25 @@ You need **Python 3.11+** and **Node 20+**.
 ### 1. Clone
 
 ```bash
-git clone https://github.com/<your-username>/deckforge.git
-cd deckforge
+git clone https://github.com/LarryPursuit/DeckForge.git
+cd DeckForge
 ```
 
 ### 2. Start the API (terminal 1)
 
 ```bash
 cd server
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
 # Open .env and set JWT_SECRET_KEY. Generate one with:
-python -c "import secrets; print(secrets.token_urlsafe(48))"
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 
 export FLASK_APP=wsgi.py         # Windows PowerShell: $env:FLASK_APP="wsgi.py"
 flask db upgrade                 # create the tables
-python seed.py                   # optional demo data
+python3 seed.py                  # optional demo data (re-running resets only the demo account)
 flask run --port 5555
 ```
 
@@ -92,6 +92,8 @@ Set `SCRYFALL_MODE=fake` in `server/.env` to work without internet. Search then 
 | `SCRYFALL_USER_AGENT` | no | Identifies the app to Scryfall, as their API rules require. Put your contact email in it. |
 | `SCRYFALL_MODE` | no | `live` (default) or `fake` for offline mode. |
 | `JWT_HOURS` | no | How long a login lasts, in hours. Default 8. |
+| `AUTH_RATE_LIMIT` | no | Login and signup attempts allowed per IP. Default `10 per minute`. |
+| `TRUST_PROXY` | no | Set to `1` behind a proxy (Render) so rate limits see the real client IP. |
 
 `client/.env.local` (production builds only): `VITE_API_URL`, the full URL of the deployed API.
 
@@ -99,7 +101,7 @@ Set `SCRYFALL_MODE=fake` in `server/.env` to work without internet. Search then 
 
 ```bash
 cd server
-python -m pytest          # 31 tests
+python3 -m pytest         # 37 tests
 cd ../client
 npm run lint              # ESLint, no warnings
 ```
@@ -114,8 +116,8 @@ Every route lives under `/api`. All routes except signup, login and health need 
 
 | Method | Route | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `/api/signup` | `{ username, email, password }` | `201 { token, user }`; `400` invalid fields; `409` taken username or email |
-| POST | `/api/login` | `{ username, password }` (username or email) | `200 { token, user }`; `401` wrong credentials |
+| POST | `/api/signup` | `{ username, email, password }` | `201 { token, user }`; `400` invalid fields; `409` taken username or email; `429` too many attempts |
+| POST | `/api/login` | `{ username, password }` (username or email) | `200 { token, user }`; `401` wrong credentials; `429` too many attempts |
 | GET | `/api/me` | | `{ user, stats: { unique_cards, total_cards, decks } }` |
 
 ### Cards (read-only, from Scryfall)
@@ -195,7 +197,8 @@ deckforge/
 ### Authentication and authorization
 
 - **Why JWT:** the frontend (Vercel) and API (Render) live on different domains. A bearer token avoids cross-site cookie problems and keeps the API stateless.
-- **Passwords:** hashed with bcrypt and never returned by any route. Login gives the same error for a wrong username and a wrong password, so the API doesn't reveal which accounts exist.
+- **Passwords:** hashed with bcrypt and never returned by any route. Login gives the same error for a wrong username and a wrong password, so the API doesn't reveal which accounts exist. Passwords are capped at bcrypt's 72-byte limit.
+- **Rate limiting:** Flask-Limiter allows 10 login or signup attempts per minute per IP address, which slows down password guessing.
 - **Ownership:** every collection and deck route loads rows through `get_owned_or_404()`, which returns 404 if the row doesn't exist and 403 if it belongs to someone else. Deck-card routes also confirm the card row belongs to the deck in the URL.
 - **Frontend guards:** `ProtectedRoute` redirects logged-out users to the login page and returns them to the page they asked for after they log in. `GuestRoute` keeps logged-in users away from the login and signup pages. Nav links and the username only appear when you're logged in.
 - **Expired tokens:** `apiFetch()` fires a logout event on any 401, so the app returns to the login page with a message instead of showing broken pages.
@@ -207,6 +210,7 @@ deckforge/
 - Each request sends the `User-Agent` and `Accept` headers Scryfall requires.
 - Search is throttled to Scryfall's limit of 2 requests per second, and the React search box waits 400 ms after typing stops.
 - An HTTP 429 from Scryfall becomes a clear "try again" message, never a silent retry.
+- Card ids must be Scryfall UUIDs, so user input can't change which Scryfall URL gets called.
 - Every card Scryfall returns is upserted into the `cards` table. Deck and collection pages read only from that cache. Outside of search, Scryfall is called only when you add a card whose cached copy is more than 24 hours old.
 
 ### Owned vs missing

@@ -13,8 +13,8 @@ def test_add_card_then_add_again_increases_quantity(client, alice, cached_cards)
 
 
 def test_add_unknown_card_is_404(client, alice, mock_scryfall):
-    mock_scryfall.get("https://api.scryfall.com/cards/not-a-real-card", status=404, json={"object": "error"})
-    res = client.post("/api/collection", json={"card_id": "not-a-real-card"}, headers=alice)
+    mock_scryfall.get("https://api.scryfall.com/cards/00000000-0000-4000-8000-00000000dead", status=404, json={"object": "error"})
+    res = client.post("/api/collection", json={"card_id": "00000000-0000-4000-8000-00000000dead"}, headers=alice)
     assert res.status_code == 404
 
 
@@ -75,3 +75,15 @@ def test_color_filter_and_bad_params(client, alice, cached_cards):
     res = client.get("/api/collection?sort=random&per_page=500", headers=alice)
     assert res.status_code == 400
     assert set(res.get_json()["fields"]) == {"sort", "per_page"}
+
+
+def test_card_id_must_be_a_scryfall_uuid(client, alice):
+    import responses
+
+    with responses.RequestsMock() as rsps:  # no request may reach Scryfall
+        for bad in ("random", "named?exact=Sol Ring", "../sets/abc"):
+            res = client.post("/api/collection", json={"card_id": bad}, headers=alice)
+            assert res.status_code == 400, bad
+            assert "card_id" in res.get_json()["fields"]
+        assert client.get("/api/cards/random", headers=alice).status_code == 404
+        assert len(rsps.calls) == 0

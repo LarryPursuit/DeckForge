@@ -20,7 +20,11 @@ export function AuthProvider({ children }) {
     if (!tokenStore.get()) return;
     apiFetch("/api/me")
       .then((data) => setUser(data.user))
-      .catch(() => tokenStore.clear())
+      // A 401 already logs out through the "deckforge:logout" event below.
+      // Anything else (server down, network blip) keeps the token so a refresh can retry.
+      .catch((err) => {
+        if (err.status !== 401) setNotice(err.message);
+      })
       .finally(() => setStatus("ready"));
   }, []);
 

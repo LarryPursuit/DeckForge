@@ -1,7 +1,9 @@
 """Create a demo user with a small collection and two decks.
 
-Usage:  python seed.py
+Usage:  python3 seed.py
 Login:  demo / password123
+
+Safe to re-run: it replaces only the demo account. Other users are untouched.
 
 With SCRYFALL_MODE=fake this runs offline. With the live API it makes a few
 throttled Scryfall searches to fill the card cache.
@@ -31,15 +33,23 @@ def _live():
     return current_app.config["SCRYFALL_MODE"] != "fake"
 
 
-def run():
-    app = create_app()
+DEMO_USERNAME = "demo"
+DEMO_EMAIL = "demo@deckforge.dev"
+
+
+def _remove_old_demo():
+    old = User.query.filter((User.username == DEMO_USERNAME) | (User.email == DEMO_EMAIL)).all()
+    for user in old:
+        db.session.delete(user)  # cascades to the demo's collection and decks
+    db.session.commit()
+
+
+def seed(app):
     with app.app_context():
         db.create_all()  # no-op when `flask db upgrade` already made the tables
-        for model in (DeckCard, Deck, CollectionItem, User):
-            db.session.query(model).delete()
-        db.session.commit()
+        _remove_old_demo()
 
-        demo = User(username="demo", email="demo@deckforge.dev")
+        demo = User(username=DEMO_USERNAME, email=DEMO_EMAIL)
         demo.set_password("password123")
         db.session.add(demo)
         db.session.flush()
@@ -81,4 +91,4 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    seed(create_app())

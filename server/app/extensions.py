@@ -1,6 +1,8 @@
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
@@ -21,3 +23,6 @@ migrate = Migrate()
 bcrypt = Bcrypt()
 jwt = JWTManager()
 cors = CORS()
+# Per-IP limits on the auth routes. Memory storage is per process, which fits
+# a single Render instance; switch RATELIMIT_STORAGE_URI to Redis to scale out.
+limiter = Limiter(key_func=get_remote_address)

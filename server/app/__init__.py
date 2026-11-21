@@ -1,9 +1,11 @@
 from flask import Flask
 from marshmallow import ValidationError
+from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
-from .extensions import bcrypt, cors, db, jwt, migrate
+from .extensions import bcrypt, cors, db, jwt, limiter, migrate
 from .scryfall import ScryfallError
 
 
@@ -11,11 +13,14 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     _check_secret(app)
+    if app.config["TRUST_PROXY"]:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     jwt.init_app(app)
+    limiter.init_app(app)
     cors.init_app(app, resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}})
 
     from . import models  # noqa: F401  (registers models with SQLAlchemy)
@@ -51,6 +56,17 @@ def register_error_handlers(app):
     @app.errorhandler(ScryfallError)
     def handle_scryfall(err):
         return {"error": err.message}, err.status
+
+    @app.errorhandler(429)
+    def handle_rate_limit(_err):
+        return {"error": "Too many attempts. Wait a minute and try again."}, 429
+
+    # Two requests racing past the "already exists?" check both try to insert;
+    # the unique constraint stops the second one. Report it instead of a 500.
+    @app.errorhandler(IntegrityError)
+    def handle_integrity(_err):
+        db.session.rollback()
+        return {"error": "That already exists. Refresh and try again."}, 409
 
     @app.errorhandler(HTTPException)
     def handle_http(err):

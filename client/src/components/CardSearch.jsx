@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api";
 import useDebounce from "../hooks/useDebounce";
 import CardImage from "./CardImage";
@@ -26,6 +26,8 @@ export default function CardSearch({ actionLabel, onPick, autoFocus = false, com
   const [state, setState] = useState({ status: "idle", cards: [], total: 0, page: 1, hasMore: false, error: "" });
   const [busyId, setBusyId] = useState(null);
   const [message, setMessage] = useState("");
+  // The in-flight "Show more" request, so a new query can cancel it.
+  const moreCtrl = useRef(null);
 
   useEffect(() => {
     if (debounced.length < 2) {
@@ -39,17 +41,23 @@ export default function CardSearch({ actionLabel, onPick, autoFocus = false, com
       .catch((err) => {
         if (err.name !== "AbortError") setState({ status: "error", cards: [], total: 0, page: 1, hasMore: false, error: err.message });
       });
-    return () => ctrl.abort();
+    return () => {
+      ctrl.abort();
+      moreCtrl.current?.abort();
+    };
   }, [debounced]);
 
   // Scryfall returns up to 175 cards a page; "Show more" fetches the next one.
   async function loadMore() {
+    const ctrl = new AbortController();
+    moreCtrl.current = ctrl;
     setState((s) => ({ ...s, status: "loading-more", error: "" }));
     try {
-      const data = await fetchPage(debounced, state.page + 1);
+      const data = await fetchPage(debounced, state.page + 1, ctrl.signal);
       setState((s) => fromResponse(data, s.cards));
     } catch (err) {
-      setState((s) => ({ ...s, status: "done", error: err.message }));
+      // Aborted means the user typed a new query; its own request owns the state now.
+      if (err.name !== "AbortError") setState((s) => ({ ...s, status: "done", error: err.message }));
     }
   }
 

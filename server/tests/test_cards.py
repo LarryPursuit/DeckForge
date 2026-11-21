@@ -60,3 +60,8 @@ def test_show_uses_cache_without_calling_scryfall(client, alice, cached_cards):
         assert len(rsps.calls) == 0
     assert res.status_code == 200
     assert res.get_json()["name"] == "Lightning Bolt"
+
+
+def test_search_reports_the_page_it_actually_used(client, alice, mock_scryfall):
+    res = client.get("/api/cards/search?q=bolt&page=0", headers=alice)
+    assert res.get_json()["page"] == 1

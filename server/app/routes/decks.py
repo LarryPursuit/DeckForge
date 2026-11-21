@@ -1,5 +1,6 @@
 from flask import Blueprint, abort, request
 from flask_jwt_extended import jwt_required
+from sqlalchemy.orm import selectinload
 
 from ..extensions import db
 from ..models import CollectionItem, Deck, DeckCard, utcnow
@@ -62,7 +63,13 @@ def _deck_payload(deck):
 @bp.get("")
 @jwt_required()
 def index():
-    decks = Deck.query.filter_by(user_id=current_user_id()).order_by(Deck.updated_at.desc()).all()
+    # Load every deck's cards in two extra queries instead of two per deck.
+    decks = (
+        Deck.query.filter_by(user_id=current_user_id())
+        .options(selectinload(Deck.deck_cards).selectinload(DeckCard.card))
+        .order_by(Deck.updated_at.desc())
+        .all()
+    )
     return {"decks": [d.summary() for d in decks]}
 
 

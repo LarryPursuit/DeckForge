@@ -29,9 +29,9 @@ def make_card(card_id, name, price="1.00", **extra):
     return card
 
 
-BOLT = make_card("bolt-0000-0000-0000-000000000001", "Lightning Bolt", "1.50")
-SPEAR = make_card("spear-000-0000-0000-000000000002", "Monastery Swiftspear", "0.60")
-DRAGON = make_card("dragon-00-0000-0000-000000000003", "Shivan Dragon", "0.90")
+BOLT = make_card("0b0170c1-0000-4000-8000-000000000001", "Lightning Bolt", "1.50")
+SPEAR = make_card("05ea0000-0000-4000-8000-000000000002", "Monastery Swiftspear", "0.60")
+DRAGON = make_card("0d0a0000-0000-4000-8000-000000000003", "Shivan Dragon", "0.90")
 
 
 @pytest.fixture

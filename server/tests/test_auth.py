@@ -74,3 +74,41 @@ def test_app_refuses_to_start_without_a_strong_secret():
 
     with pytest.raises(RuntimeError, match="JWT_SECRET_KEY"):
         create_app(NoSecret)
+
+
+def test_password_over_72_bytes_is_a_field_error_not_a_crash(client):
+    # bcrypt only reads 72 bytes and bcrypt 5 raises on longer input.
+    res = client.post("/api/signup", json={"username": "longpw", "email": "l@test.dev", "password": "a" * 73})
+    assert res.status_code == 400
+    assert "password" in res.get_json()["fields"]
+
+    multibyte = client.post("/api/signup", json={"username": "emoji", "email": "e@test.dev", "password": "é" * 40})
+    assert multibyte.status_code == 400  # 40 characters, 80 bytes
+
+
+def test_login_with_very_long_password_is_a_normal_401(client):
+    signup(client, "alice")
+    res = client.post("/api/login", json={"username": "alice", "password": "a" * 200})
+    assert res.status_code == 401
+
+
+def test_login_is_rate_limited():
+    from app import create_app
+    from app.config import TestConfig
+    from app.extensions import db
+
+    class Limited(TestConfig):
+        RATELIMIT_ENABLED = True
+
+    app = create_app(Limited)
+    with app.app_context():
+        db.create_all()
+        client = app.test_client()
+        codes = [
+            client.post("/api/login", json={"username": "ghost", "password": "wrong-pass"}).status_code
+            for _ in range(11)
+        ]
+        assert codes[:10] == [401] * 10
+        assert codes[10] == 429
+        assert "error" in client.post("/api/login", json={"username": "g", "password": "p"}).get_json()
+        db.drop_all()

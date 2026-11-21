@@ -14,6 +14,8 @@ services:
         value: 3.12.7
       - key: FLASK_APP
         value: wsgi.py
+      - key: TRUST_PROXY
+        value: "1" # rate limits use the real client IP behind Render's proxy
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL

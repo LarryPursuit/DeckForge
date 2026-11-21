@@ -5,6 +5,8 @@ from sqlalchemy.orm import validates
 
 from .extensions import bcrypt, db
 
+BCRYPT_MAX_BYTES = 72
+
 
 def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -28,6 +30,9 @@ class User(db.Model):
         self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
     def check_password(self, password):
+        # Signup never stores a longer password, so a longer one can't match.
+        if len(password.encode("utf-8")) > BCRYPT_MAX_BYTES:
+            return False
         return bcrypt.check_password_hash(self.password_hash, password)
 
     @validates("email")

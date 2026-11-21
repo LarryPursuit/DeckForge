@@ -19,6 +19,13 @@ class Config:
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=int(os.getenv("JWT_HOURS", "8")))
 
+    # Login/signup attempts allowed per IP address.
+    RATELIMIT_ENABLED = True
+    RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+    AUTH_RATE_LIMIT = os.getenv("AUTH_RATE_LIMIT", "10 per minute")
+    # Render sits behind a proxy; trust one X-Forwarded-For hop so limits are per user, not per proxy.
+    TRUST_PROXY = os.getenv("TRUST_PROXY") == "1"
+
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 
     SCRYFALL_BASE_URL = os.getenv("SCRYFALL_BASE_URL", "https://api.scryfall.com")
@@ -33,3 +40,4 @@ class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     JWT_SECRET_KEY = "test-secret-key-that-is-long-enough-32b"
     SCRYFALL_MODE = "live"  # tests mock HTTP with `responses`
+    RATELIMIT_ENABLED = False  # one test turns it back on

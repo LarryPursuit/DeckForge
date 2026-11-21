@@ -1,13 +1,17 @@
-from flask import Blueprint, request
+from flask import Blueprint, current_app, request
 from flask_jwt_extended import create_access_token, jwt_required
 from sqlalchemy import func
 
-from ..extensions import db
+from ..extensions import db, limiter
 from ..models import User
 from ..schemas import LoginSchema, SignupSchema
 from ..utils import current_user_id
 
 bp = Blueprint("auth", __name__, url_prefix="/api")
+
+
+def _auth_limit():
+    return current_app.config["AUTH_RATE_LIMIT"]
 
 
 def _token_response(user, status=200):
@@ -16,6 +20,7 @@ def _token_response(user, status=200):
 
 
 @bp.post("/signup")
+@limiter.limit(_auth_limit)
 def signup():
     data = SignupSchema().load(request.get_json(silent=True) or {})
     username = data["username"].strip()
@@ -37,6 +42,7 @@ def signup():
 
 
 @bp.post("/login")
+@limiter.limit(_auth_limit)
 def login():
     data = LoginSchema().load(request.get_json(silent=True) or {})
     ident = data["username"].strip()

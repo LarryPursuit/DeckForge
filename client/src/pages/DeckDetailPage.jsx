@@ -4,7 +4,7 @@ import { apiFetch } from "../api";
 import CardImage from "../components/CardImage";
 import CardSearch from "../components/CardSearch";
 import ManaCost from "../components/ManaCost";
-import { FORMATS } from "../constants";
+import { FORMATS, MAX_DECK_COPIES } from "../constants";
 
 const money = (n) => `$${n.toFixed(2)}`;
 const MAX_SLOTS = 10;
@@ -212,7 +212,7 @@ export default function DeckDetailPage() {
                           <span className="stepper stepper-small" role="group" aria-label={`Copies of ${row.card.name}`}>
                             <button type="button" onClick={() => changeQty(row, row.need - 1)} aria-label={row.need === 1 ? `Remove ${row.card.name}` : "One fewer"}>−</button>
                             <output>{row.need}</output>
-                            <button type="button" onClick={() => changeQty(row, row.need + 1)} aria-label="One more">+</button>
+                            <button type="button" onClick={() => changeQty(row, row.need + 1)} disabled={row.need >= MAX_DECK_COPIES} aria-label="One more">+</button>
                           </span>
                           <button type="button" className="btn-link" onClick={() => moveBoard(row)}>
                             {row.board === "main" ? "To sideboard" : "To main"}
